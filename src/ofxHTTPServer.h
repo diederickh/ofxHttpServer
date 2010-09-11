@@ -13,13 +13,41 @@
 #include "microhttpd.h"
 #include <ofMain.h>
 
+// can be set/changed by the event handlers (see type in response)
+enum responseTypes {
+	DEFAULT_RESPONSE
+	,REDIRECT_TO_FILE
+};
+
 class ofxHTTPServerResponse{
 public:
+	ofxHTTPServerResponse()
+		:type(DEFAULT_RESPONSE) 
+		,connection(NULL)
+	{
+	}
+	int type;
 	string url;
 	string response;
 
 	std::map<string,string> requestFields;
 	vector<string> uploadedFiles;
+	struct MHD_Connection *connection; // added by Diederick
+	
+	// get the value for a GET parameter.
+	string getParameter(const char* sName) {
+		string result = "";
+		if(connection != NULL) {
+			const char* value = MHD_lookup_connection_value(
+										connection
+										,MHD_GET_ARGUMENT_KIND
+										,sName
+			);
+			if(value != NULL)
+				result.append(value);
+		}
+		return result;
+	}
 };
 
 
@@ -31,14 +59,12 @@ public:
 
 	virtual ~ofxHTTPServer();
 
-
 	void start(unsigned port = 8888);
 	void stop();
 	void setServerRoot(const string & fsroot);
 	void setUploadDir(const string & uploadDir);
 	void setCallbackExtension(const string & cb_extension);
 	void setMaxNumberClients(unsigned num_clients);
-
 	ofEvent<ofxHTTPServerResponse> getEvent;
 	ofEvent<ofxHTTPServerResponse> postEvent;
 

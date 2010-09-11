@@ -9,6 +9,7 @@
 #include <cstring>
 #include <fstream>
 #include <map>
+#include <sys/stat.h> // added died
 
 using namespace std;
 
@@ -52,15 +53,28 @@ public:
 	long length;
 };
 
-// helper functions
 
+bool isDirectory(const char* path) {
+    int i = strlen(path) - 1;
+    if (path[strlen(path)] == '.') {return true;} // exception for directories
+    // such as \. and \..
+    for(i; i >= 0; i--) {
+        if (path[i] == '.') return false; // if we first encounter a . then it's a file
+        else if (path[i] == '\\' || path[i] == '/') return true; // if we first encounter a \ it's a dir
+    }
+}
+
+
+// helper functions
 static fs_file getFileContent(const string & path){
 	fs_file file;
 
+	if(isDirectory(path.c_str())) {
+		return file;
+	}
 	ifstream indata; // indata is like cin
 	indata.open( path.c_str() ); // opens the file
 	if(!indata) return file;
-
 
 	indata.seekg (0, ios::end);
 	file.length = indata.tellg();
@@ -75,6 +89,7 @@ static fs_file getFileContent(const string & path){
 
 	return file;
 }
+
 
 int connection_info::id=0;
 
@@ -141,7 +156,7 @@ void ofxHTTPServer::request_completed (void *cls, struct MHD_Connection *connect
                         enum MHD_RequestTerminationCode toe)
 {
   connection_info *con_info = (connection_info*) *con_cls;
-
+cout << "request complete: "  << connection << std::endl;
 
   if (NULL == con_info) return;
 
@@ -180,7 +195,8 @@ ofxHTTPServer::ofxHTTPServer() {
 	callbackExtensionSet = false;
 	maxClients = 10;
 	numClients = 0;
-	uploadDir = ofToDataPath("",true);
+
+	//uploadDir = ofToDataPath(".",true);
 }
 
 ofxHTTPServer::~ofxHTTPServer() {
@@ -197,7 +213,6 @@ int ofxHTTPServer::answer_to_connection(void *cls,
 	string strmethod = method;
 
 	connection_info  * con_info;
-
 	// to process post we need several iterations, first we set a connection info structure
 	// and return MHD_YES, that will make the server call us again
 	if(NULL == *con_cls){
@@ -259,18 +274,146 @@ int ofxHTTPServer::answer_to_connection(void *cls,
 
 
 	// if the extension of the url is that set to the callback, call the events to generate the response
-	if(instance.callbackExtensionSet && strurl.substr(strurl.size()-instance.callbackExtension.size())==instance.callbackExtension){
+	string extension;
+	try {
+		extension = strurl.substr(strurl.size()-instance.callbackExtension.size());
+	}
+	catch (std::out_of_range& oor) {
+		
+	}
+	if(instance.callbackExtensionSet && extension ==instance.callbackExtension){
 		cout << method << " serving from callback: " << url << endl;
 
 		ofxHTTPServerResponse response;
+		response.connection = connection;
 		response.url = strurl;
-
-
+		cout << "RFID: " << con_info->fields["rfid"] << std::endl;
 		if(strmethod=="GET"){
 			ofNotifyEvent(instance.getEvent,response);
-
-			ret = send_page(connection, response.response.size(), response.response.c_str(), MHD_HTTP_OK);
+			// ---- start: Diederick
+			if(response.type == DEFAULT_RESPONSE) {
+				ret = send_page(
+								connection
+								,response.response.size()
+								,response.response.c_str()
+								,MHD_HTTP_OK
+				);
+			}
+			else if(response.type == REDIRECT_TO_FILE) {
+				fs_file file;
+				file = getFileContent(response.url);
+				if(!file.buffer) { // file couldn't be opened
+					cerr << "Error: file could not be opened trying to serve 404.html" << endl;
+					file = getFileContent(ofToDataPath("404.html", true));
+					if(!file.buffer) {
+						file.buffer = new char[100];
+						strcpy(file.buffer, "error 404 - page not found");
+						file.length = strlen(file.buffer);
+					}
+					ret = send_page(
+							connection
+							,file.length
+							,file.buffer
+							,MHD_HTTP_NOT_FOUND
+					);
+				}else{
+					// send 404. page.
+					ret = send_page(
+						connection
+						,file.length
+						,file.buffer
+						,MHD_HTTP_OK
+					);
+				}
+			}
+			// -- end: Diederick
 		}else if (strmethod=="POST"){
+			connection_info *con_info = (connection_info *)*con_cls;
+
+			if (*upload_data_size != 0){
+				ret = MHD_post_process(con_info->postprocessor, upload_data, *upload_data_size);
+				*upload_data_size = 0;
+
+			}else{
+				cout << "upload_data_size =  0" << endl;
+				response.requestFields = con_info->fields;
+				map<string,FILE*>::iterator it;
+				  for(it=con_info->file_fields.begin();it!=con_info->file_fields.end();it++){
+					  if(it->second!=NULL){
+						  fflush(it->second);
+						  fclose(it->second);
+						  response.uploadedFiles.push_back(it->first);
+					  }
+				  }
+				ofNotifyEvent(instance.postEvent,response);
+
+				ret = send_page(connection, response.response.size(), response.response.c_str(), MHD_HTTP_OK);
+			}
+
+		}
+
+	// if the extension of the url is any other try to serve a file
+	}else{
+		cout << method << " serving from filesystem: " << url << endl;
+
+		fs_file file;
+
+		file = getFileContent(instance.fsRoot + url);
+
+		if(!file.buffer) { // file couldn't be opened
+			cerr << "Error: file could not be opened trying to serve 404.html" << endl;
+			file = getFileContent(ofToDataPath("404.html", true));
+			if(!file.buffer){
+				file.buffer = new char[100];
+				strcpy(file.buffer, "error 404 - page not found");
+				file.length = strlen(file.buffer);
+			}
+			else {
+				cout << "Hmm we got a404 file?" << std::endl;
+			}
+			
+			ret = send_page(connection, file.length, file.buffer, MHD_HTTP_NOT_FOUND);
+		}else{
+			cout << "Huh?" << std::endl;
+			ret = send_page(connection, file.length, file.buffer, MHD_HTTP_OK);
+		}
+
+		if(file.buffer)	delete[] file.buffer;
+	}
+
+	return ret;
+
+		//response.connection = connection;
+		/*
+		string d = ofToDataPath("images/2010.8.8/0000000011.jpg",true);
+		instance.serveFile(d, &response);
+		return MHD_YES;
+		*/
+		/*
+		if(strmethod=="GET"){
+			ofNotifyEvent(instance.getEvent,response);
+			if(response.type == DEFAULT_RESPONSE)
+				ret = send_page(connection, response.response.size(), response.response.c_str(), MHD_HTTP_OK);
+			}
+			else if(response.type == REDIRECT_TO_FILE) {
+				cout << "OKAY NOCE! REDIRECT TO FIULE" << std::endl;
+				fs_file file;
+				file = getFileContent(response.url);
+				if(!file.buffer) { // file couldn't be opened
+					cerr << "Error: file could not be opened trying to serve 404.html" << endl;
+					file = getFileContent(ofToDataPath("404.html", true));
+					if(!file.buffer){
+						file.buffer = new char[100];
+						strcpy(file.buffer, "error 404 - page not found");
+						file.length = strlen(file.buffer);
+					}
+					ret = send_page(connection, file.length, file.buffer, MHD_HTTP_NOT_FOUND);
+				}else{
+					ret = send_page(connection, file.length, file.buffer, MHD_HTTP_OK);
+				}
+			}
+		}
+		else if (strmethod=="POST"){
 			connection_info *con_info = (connection_info *)*con_cls;
 
 			if (*upload_data_size != 0){
@@ -320,7 +463,7 @@ int ofxHTTPServer::answer_to_connection(void *cls,
 	}
 
 	return ret;
-
+*/
 }
 
 
