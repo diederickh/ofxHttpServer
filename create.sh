@@ -5,7 +5,7 @@ if [ "$1" = "reset" ] ; then
 		echo "remove!"
 		rm -rf microhttpd	
 	fi
-	svn checkout https://gnunet.org/svn/libmicrohttpd/ microhttpd
+	svn checkout -r 13000 https://gnunet.org/svn/libmicrohttpd/ microhttpd
 	mkdir microhttpd/stage
 fi
 
