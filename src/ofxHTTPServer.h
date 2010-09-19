@@ -9,7 +9,13 @@
 #define OFXHTTPSERVER_H_
 
 #include <cstdarg>
-#include <sys/socket.h>
+#if defined( __WIN32__ ) || defined( _WIN32 )
+	#define MHD_PLATFORM_H
+	#include <ws2tcpip.h>
+	#include <stdint.h>
+#else
+	#include <sys/socket.h>
+#endif
 #include "microhttpd.h"
 #include <ofMain.h>
 
@@ -22,7 +28,7 @@ enum responseTypes {
 class ofxHTTPServerResponse{
 public:
 	ofxHTTPServerResponse()
-		:type(DEFAULT_RESPONSE) 
+		:type(DEFAULT_RESPONSE)
 		,connection(NULL)
 	{
 	}
@@ -33,7 +39,7 @@ public:
 	std::map<string,string> requestFields;
 	vector<string> uploadedFiles;
 	struct MHD_Connection *connection; // added by Diederick
-	
+
 	// get the value for a GET parameter.
 	string getParameter(const char* sName) {
 		string result = "";

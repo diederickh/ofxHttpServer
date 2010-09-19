@@ -1,11 +1,12 @@
 #!/bin/sh
+# this file creates the static lib for libmicrohttpd on a mac
 if [ "$1" = "reset" ] ; then 
 	echo "Reset"
 	if [ -d microhttpd ] ; then 
 		echo "remove!"
 		rm -rf microhttpd	
 	fi
-	svn checkout -r 13000 https://gnunet.org/svn/libmicrohttpd/ microhttpd
+	svn checkout -r 12577 https://gnunet.org/svn/libmicrohttpd/ microhttpd
 	mkdir microhttpd/stage
 fi
 

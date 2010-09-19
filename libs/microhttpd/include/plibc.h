@@ -6,12 +6,12 @@
 	   modify it under the terms of the GNU Lesser General Public
 	   License as published by the Free Software Foundation; either
 	   version 2.1 of the License, or (at your option) any later version.
-	
+
 	   This library is distributed in the hope that it will be useful,
 	   but WITHOUT ANY WARRANTY; without even the implied warranty of
 	   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 	   Lesser General Public License for more details.
-	
+
 	   You should have received a copy of the GNU Lesser General Public
 	   License along with this library; if not, write to the Free Software
 	   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
@@ -22,7 +22,7 @@
  * @brief PlibC header
  * @attention This file is usually not installed under Unix,
  *            so ship it with your application
- * @version $Revision: 1.46 $
+ * @version $Revision: 39 $
  */
 
 #ifndef _PLIBC_H_
@@ -359,6 +359,7 @@ extern "C"
   void SetErrnoFromWinsockError (long lWinError);
   void SetHErrnoFromWinError (long lWinError);
   void SetErrnoFromHRESULT (HRESULT hRes);
+  int GetErrnoFromWinsockError (long lWinError);
   FILE *_win_fopen (const char *filename, const char *mode);
   DIR *_win_opendir (const char *dirname);
   int _win_open (const char *filename, int oflag, ...);
@@ -463,7 +464,7 @@ extern "C"
 #define BINDTEXTDOMAIN(d, n) bindtextdomain(d, n)
 #endif
 #define CREAT(p, m) creat(p, m)
-#define CTIME(c) ctime(c)
+#define PLIBC_CTIME(c) ctime(c)
 #define CTIME_R(c, b) ctime_r(c, b)
 #undef FOPEN
 #define FOPEN(f, m) fopen(f, m)
@@ -531,6 +532,8 @@ extern "C"
 #define GETTIMEOFDAY(t, n) gettimeofday(t, n)
 #define INSQUE(e, p) insque(e, p)
 #define REMQUE(e) remque(e)
+
+#ifndef __SYMBIAN32__
 #define HSEARCH(i, a) hsearch(i, a)
 #define HCREATE(n) hcreate(n)
 #define HDESTROY() hdestroy()
@@ -544,6 +547,22 @@ extern "C"
 #define TDESTROY(r, f) tdestroy(r, f)
 #define LFIND(k, b, n, s, c) lfind(k, b, n, s, c)
 #define LSEARCH(k, b, n, s, c) lsearch(k, b, n, s, c)
+#else  // __SYMBIAN32__
+#define HSEARCH(i, a) _win_hsearch(i, a)
+#define HCREATE(n) _win_hcreate(n)
+#define HDESTROY() _win_hdestroy()
+#define HSEARCH_R(i, a, r, h) _win_hsearch_r(i, a, r, h)
+#define HCREATE_R(n, h) _win_hcreate_r(n, h)
+#define HDESTROY_R(h) _win_hdestroy_r(h)
+#define TSEARCH(k, r, c) _win_tsearch(k, r, c)
+#define TFIND(k, r, c) _win_tfind(k, r, c)
+#define TDELETE(k, r, c) _win_tdelete(k, r, c)
+#define TWALK(r, a) _win_twalk(r, a)
+#define TDESTROY(r, f) _win_tdestroy(r, f)
+#define LFIND(k, b, n, s, c) _win_lfind(k, b, n, s, c)
+#define LSEARCH(k, b, n, s, c) _win_lsearch(k, b, n, s, c)
+#endif  // !__SYMBIAN32__
+
 #else
 #define DIR_SEPARATOR '\\'
 #define DIR_SEPARATOR_STR "\\"
@@ -555,7 +574,7 @@ extern "C"
 #define BINDTEXTDOMAIN(d, n) _win_bindtextdomain(d, n)
 #endif
 #define CREAT(p, m) _win_creat(p, m)
-#define CTIME(c) _win_ctime(c)
+#define PLIBC_CTIME(c) _win_ctime(c)
 #define CTIME_R(c, b) _win_ctime_r(c, b)
 #define FOPEN(f, m) _win_fopen(f, m)
 #define FTRUNCATE(f, l) _win_ftruncate(f, l)
